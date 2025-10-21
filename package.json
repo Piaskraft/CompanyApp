@@ -5,7 +5,8 @@
   "license": "MIT",
   "scripts": {
     "start": "nodemon server.js",
-    "seed": "node seed.js"
+    "seed": "node seed.js",
+    "normalize": "node scripts/normalizeEmployees.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

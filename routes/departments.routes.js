@@ -1,76 +1,90 @@
+// routes/departments.routes.js
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
-const Department = require('../models/department.model');
 
-// GET /departments — wszystkie
-router.get('/departments', async (req, res) => {
+const Department = require('../models/department.model.js');
+
+function badId(res) {
+  return res.status(400).json({ message: 'Invalid ID format' });
+}
+
+// LISTA
+router.get('/departments', async (_req, res) => {
   try {
-    const data = await Department.find();
-    res.json(data);
-  } catch (err) {
-    res.status(500).json({ message: err });
+    const list = await Department.find().sort({ name: 1 });
+    res.json(list);
+  } catch (e) {
+    res.status(500).json({ message: e.message });
   }
 });
 
-// GET /departments/random — losowy dokument
-router.get('/departments/random', async (req, res) => {
-  try {
-    const count = await Department.countDocuments();
-    if (!count) return res.json(null);
-    const rand = Math.floor(Math.random() * count);
-    const doc = await Department.findOne().skip(rand);
-    res.json(doc);
-  } catch (err) {
-    res.status(500).json({ message: err });
-  }
-});
-
-// GET /departments/:id — po _id
+// PO ID
 router.get('/departments/:id', async (req, res) => {
   try {
-    const doc = await Department.findById(req.params.id);
-    if (!doc) return res.status(404).json({ message: 'Not found...' });
-    res.json(doc);
-  } catch (err) {
-    res.status(500).json({ message: err });
+    if (!mongoose.isValidObjectId(req.params.id)) return badId(res);
+    const one = await Department.findById(req.params.id);
+    if (!one) return res.status(404).json({ message: 'Not found' });
+    res.json(one);
+  } catch (e) {
+    res.status(500).json({ message: e.message });
   }
 });
 
-// POST /departments — dodaj
+// DODAJ
 router.post('/departments', async (req, res) => {
   try {
-    const { name } = req.body;
-    const dep = new Department({ name });
-    await dep.save();
-    res.json({ message: 'OK' });
-  } catch (err) {
-    res.status(500).json({ message: err });
+    const { name } = req.body || {};
+    if (!name) return res.status(400).json({ message: 'Missing field: name' });
+
+    const created = await Department.create({ name });
+    res.status(201).json(created);
+  } catch (e) {
+    // duplikat nazwy (unikalny indeks) → 409 Conflict
+    if (e && (e.code === 11000 || e.name === 'MongoServerError')) {
+      return res.status(409).json({ message: 'Department name already exists' });
+    }
+    if (e.name === 'ValidationError') {
+      return res.status(400).json({ message: e.message });
+    }
+    res.status(500).json({ message: e.message });
   }
 });
 
-// PUT /departments/:id — aktualizuj (czytelny wariant z save)
+// AKTUALIZUJ
 router.put('/departments/:id', async (req, res) => {
   try {
-    const { name } = req.body;
-    const dep = await Department.findById(req.params.id);
-    if (!dep) return res.status(404).json({ message: 'Not found...' });
-    dep.name = name;
-    await dep.save();
-    res.json({ message: 'OK' });
-  } catch (err) {
-    res.status(500).json({ message: err });
+    if (!mongoose.isValidObjectId(req.params.id)) return badId(res);
+    const { name } = req.body || {};
+    if (!name) return res.status(400).json({ message: 'Missing field: name' });
+
+    const updated = await Department.findByIdAndUpdate(
+      req.params.id,
+      { name },
+      { new: true, runValidators: true }
+    );
+    if (!updated) return res.status(404).json({ message: 'Not found' });
+    res.json(updated);
+  } catch (e) {
+    if (e && (e.code === 11000 || e.name === 'MongoServerError')) {
+      return res.status(409).json({ message: 'Department name already exists' });
+    }
+    if (e.name === 'ValidationError') {
+      return res.status(400).json({ message: e.message });
+    }
+    res.status(500).json({ message: e.message });
   }
 });
 
-// DELETE /departments/:id — usuń
+// USUŃ
 router.delete('/departments/:id', async (req, res) => {
   try {
-    const dep = await Department.findById(req.params.id);
-    if (!dep) return res.status(404).json({ message: 'Not found...' });
-    await Department.deleteOne({ _id: dep._id });
+    if (!mongoose.isValidObjectId(req.params.id)) return badId(res);
+    const deleted = await Department.findByIdAndDelete(req.params.id);
+    if (!deleted) return res.status(404).json({ message: 'Not found' });
     res.json({ message: 'OK' });
-  } catch (err) {
-    res.status(500).json({ message: err });
+  } catch (e) {
+    res.status(500).json({ message: e.message });
   }
 });
 
